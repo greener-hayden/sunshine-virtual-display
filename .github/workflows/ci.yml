@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PSScriptAnalyzer
+        run: |
+          pwsh -NoLogo -NoProfile -Command "Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser"
+      - name: Lint PowerShell scripts
+        run: |
+          pwsh -NoLogo -NoProfile -Command "Invoke-ScriptAnalyzer -Path . -Recurse -EnableExit"
+      - name: Check PowerShell formatting
+        run: |
+          pwsh -NoLogo -NoProfile -Command "Get-ChildItem -Recurse -Filter *.ps1 | ForEach-Object { $content = Get-Content $_.FullName -Raw; $formatted = Invoke-Formatter -ScriptDefinition $content; if ($content -ne $formatted) { Write-Error 'Formatting issue in ' + $_.FullName; exit 1 } }"
