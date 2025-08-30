@@ -72,7 +72,7 @@ The script automatically reads client resolution from Sunshine environment varia
 
 ## Files Created
 
-- `settings.json` - Stores installation info
+- `settings.json` - Stores installation info (pre-filled with default `SunshineService` name)
 - `logs/` - Contains debug logs (created on first run)
 
 ## Notes
