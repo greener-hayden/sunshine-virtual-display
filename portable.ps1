@@ -13,8 +13,23 @@
 param(
     [string]$SettingsPath = (Join-Path $PSScriptRoot 'settings.json'),
     [switch]$Install,
-    [switch]$Uninstall
+    [switch]$Uninstall,
+    [switch]$NoLogging
 )
+
+# Initialize logging if not disabled
+if (-not $NoLogging) {
+    $logDir = Join-Path $PSScriptRoot 'logs'
+    if (-not (Test-Path $logDir)) {
+        New-Item -ItemType Directory -Path $logDir | Out-Null
+    }
+    
+    $action = if ($Install) { 'install' } elseif ($Uninstall) { 'uninstall' } else { 'status' }
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $logPath = Join-Path $logDir "portable-$action-$timestamp.log"
+    Start-Transcript -Path $logPath -Append | Out-Null
+    Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Logging to: $logPath"
+}
 
 #region Helper Functions
 function Test-IsAdmin {
@@ -169,13 +184,17 @@ function Install-Portable {
     $backup  = $null
 
     try {
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Starting installation process"
         if ($service -and $service.Status -eq 'Running') {
+            Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Stopping Sunshine service"
             Stop-Service $service -Force -ErrorAction Stop
             $service.WaitForStatus('Stopped','00:00:20')
             $wasRunning = $true
         }
 
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Installing virtual display driver"
         $infPath = Install-VirtualDisplay
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Updating Sunshine configuration"
         $backup  = Update-SunshineConfig -SunshinePath $sunshine
 
         # Update settings with installation details
@@ -186,8 +205,11 @@ function Install-Portable {
         $settings.deviceId = $infPath
         Save-Settings -Settings $settings
 
-        if ($service) { Start-Service $service -ErrorAction Stop }
-        Write-Output 'Sunshine virtual display installed successfully.'
+        if ($service) { 
+            Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Starting Sunshine service"
+            Start-Service $service -ErrorAction Stop 
+        }
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Sunshine virtual display installed successfully."
     }
     catch {
         Write-Error $_
@@ -219,7 +241,9 @@ function Uninstall-Portable {
     $backupFile = "$configFile.bak"
 
     try {
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Starting uninstallation process"
         if ($service -and $service.Status -eq 'Running') {
+            Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Stopping Sunshine service"
             Stop-Service $service -Force -ErrorAction Stop
             $service.WaitForStatus('Stopped','00:00:20')
             $wasRunning = $true
@@ -240,8 +264,11 @@ function Uninstall-Portable {
             Remove-Item $SettingsPath -Force
         }
 
-        if ($service) { Start-Service $service -ErrorAction Stop }
-        Write-Output 'Sunshine virtual display removed successfully.'
+        if ($service) { 
+            Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Starting Sunshine service"
+            Start-Service $service -ErrorAction Stop 
+        }
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Sunshine virtual display removed successfully."
     }
     catch {
         Write-Error "Uninstall failed: $_"
@@ -251,14 +278,33 @@ function Uninstall-Portable {
 }
 
 # Main execution
-if ($Install) {
-    Install-Portable
-} elseif ($Uninstall) {
-    Uninstall-Portable
-} else {
-    Write-Host "Usage: portable.ps1 [-Install | -Uninstall] [-SettingsPath <path>]"
-    Write-Host ""
-    Write-Host "  -Install    : Install the Sunshine virtual display driver"
-    Write-Host "  -Uninstall  : Remove the Sunshine virtual display driver"
-    Write-Host "  -SettingsPath : Path to settings.json file (default: .\settings.json)"
+try {
+    Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Script started with parameters:"
+    Write-Output "  Install: $Install"
+    Write-Output "  Uninstall: $Uninstall"
+    Write-Output "  SettingsPath: $SettingsPath"
+    
+    if ($Install) {
+        Install-Portable
+    } elseif ($Uninstall) {
+        Uninstall-Portable
+    } else {
+        Write-Host "Usage: portable.ps1 [-Install | -Uninstall] [-SettingsPath <path>] [-NoLogging]"
+        Write-Host ""
+        Write-Host "  -Install      : Install the Sunshine virtual display driver"
+        Write-Host "  -Uninstall    : Remove the Sunshine virtual display driver"
+        Write-Host "  -SettingsPath : Path to settings.json file (default: .\settings.json)"
+        Write-Host "  -NoLogging    : Disable logging to file"
+    }
+}
+catch {
+    $errorMessage = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Error occurred: $_"
+    Write-Error $errorMessage
+    throw
+}
+finally {
+    if (-not $NoLogging) {
+        Write-Output "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Script execution completed"
+        Stop-Transcript | Out-Null
+    }
 }
