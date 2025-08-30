@@ -54,8 +54,11 @@ function Get-Settings {
     if (Test-Path $Path) {
         try {
             $settings = Get-Content $Path -Raw | ConvertFrom-Json
-            if ([string]::IsNullOrWhiteSpace($settings.serviceName)) {
+            if (-not ($settings.PSObject.Properties.Name -contains 'serviceName') -or
+                [string]::IsNullOrWhiteSpace([string]$settings.serviceName)) {
                 $settings.serviceName = 'SunshineService'
+            } else {
+                $settings.serviceName = [string]$settings.serviceName
             }
             return $settings
         } catch {
@@ -98,8 +101,8 @@ function Find-Sunshine {
     if (-not (Test-IsAdmin)) { throw 'Administrator privileges are required.' }
 
     $candidates = @(
-        Join-Path $env:ProgramFiles     'Sunshine',
-        Join-Path $env:ProgramFilesx86  'Sunshine'
+        (Join-Path $env:ProgramFiles    'Sunshine'),
+        (Join-Path $env:ProgramFilesx86 'Sunshine')
     )
 
     foreach ($dir in $candidates) {
@@ -181,7 +184,12 @@ function Install-Portable {
 
     $settings = Get-Settings
     $sunshine = Find-Sunshine
-    $service = Get-Service -Name $settings.serviceName -ErrorAction SilentlyContinue
+    $serviceName = [string]$settings.serviceName
+    $service = if ([string]::IsNullOrWhiteSpace($serviceName)) {
+        $null
+    } else {
+        Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    }
     $wasRunning = $false
     $infPath = $null
     $backup  = $null
@@ -238,7 +246,12 @@ function Uninstall-Portable {
 
     $settings = Get-Settings
     $sunshine = Find-Sunshine
-    $service = Get-Service -Name $settings.serviceName -ErrorAction SilentlyContinue
+    $serviceName = [string]$settings.serviceName
+    $service = if ([string]::IsNullOrWhiteSpace($serviceName)) {
+        $null
+    } else {
+        Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    }
     $wasRunning = $false
     $configFile = Join-Path $sunshine 'config\sunshine.conf'
     $backupFile = "$configFile.bak"
