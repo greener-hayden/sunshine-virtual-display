@@ -7,8 +7,14 @@
     with validation for administrator rights, Sunshine presence and internet
     connectivity. Sunshine's service is stopped and started gracefully and its
     configuration is backed up before modification. Errors trigger rollback of
-    configuration and driver installation.
+    configuration and driver installation. Settings are persisted in JSON format.
 #>
+
+param(
+    [string]$SettingsPath = (Join-Path $PSScriptRoot 'settings.json'),
+    [switch]$Install,
+    [switch]$Uninstall
+)
 
 #region Helper Functions
 function Test-IsAdmin {
@@ -24,6 +30,45 @@ function Test-Internet {
     <# Returns $true if the machine can reach a public host. #>
     param([string]$Host = '8.8.8.8')
     try { Test-Connection -ComputerName $Host -Quiet -Count 1 -ErrorAction Stop } catch { $false }
+}
+
+function Get-Settings {
+    <# Loads settings from JSON file or returns default settings. #>
+    param([string]$Path = $SettingsPath)
+    
+    if (Test-Path $Path) {
+        try {
+            $settings = Get-Content $Path -Raw | ConvertFrom-Json
+            return $settings
+        } catch {
+            Write-Warning "Failed to load settings from $Path"
+        }
+    }
+    
+    return [PSCustomObject]@{
+        displayName = ""
+        deviceId = ""
+        sunshineConfigPath = ""
+        sunshineConfigBackup = ""
+        serviceName = "SunshineService"
+        installDate = ""
+        version = "1.0.0"
+    }
+}
+
+function Save-Settings {
+    <# Saves settings to JSON file. #>
+    param(
+        [Parameter(Mandatory)]$Settings,
+        [string]$Path = $SettingsPath
+    )
+    
+    try {
+        $Settings | ConvertTo-Json -Depth 3 | Set-Content $Path -Encoding UTF8
+        Write-Verbose "Settings saved to $Path"
+    } catch {
+        Write-Warning "Failed to save settings to $Path"
+    }
 }
 #endregion Helper Functions
 
@@ -116,8 +161,9 @@ function Install-Portable {
     if (-not (Test-IsAdmin))   { throw 'Administrator privileges are required.' }
     if (-not (Test-Internet)) { throw 'Internet connection is required.' }
 
+    $settings = Get-Settings
     $sunshine = Find-Sunshine
-    $service = Get-Service -Name 'SunshineService' -ErrorAction SilentlyContinue
+    $service = Get-Service -Name $settings.serviceName -ErrorAction SilentlyContinue
     $wasRunning = $false
     $infPath = $null
     $backup  = $null
@@ -131,6 +177,14 @@ function Install-Portable {
 
         $infPath = Install-VirtualDisplay
         $backup  = Update-SunshineConfig -SunshinePath $sunshine
+
+        # Update settings with installation details
+        $settings.sunshineConfigPath = Join-Path $sunshine 'config\sunshine.conf'
+        $settings.sunshineConfigBackup = $backup
+        $settings.installDate = (Get-Date).ToString('o')
+        $settings.displayName = "Sunshine Virtual Display"
+        $settings.deviceId = $infPath
+        Save-Settings -Settings $settings
 
         if ($service) { Start-Service $service -ErrorAction Stop }
         Write-Output 'Sunshine virtual display installed successfully.'
@@ -157,8 +211,9 @@ function Uninstall-Portable {
 
     if (-not (Test-IsAdmin)) { throw 'Administrator privileges are required.' }
 
+    $settings = Get-Settings
     $sunshine = Find-Sunshine
-    $service = Get-Service -Name 'SunshineService' -ErrorAction SilentlyContinue
+    $service = Get-Service -Name $settings.serviceName -ErrorAction SilentlyContinue
     $wasRunning = $false
     $configFile = Join-Path $sunshine 'config\sunshine.conf'
     $backupFile = "$configFile.bak"
@@ -180,6 +235,11 @@ function Uninstall-Portable {
 
         try { pnputil /delete-driver 'sunshine-virtual-display.inf' /uninstall /force | Out-Null } catch { Write-Warning $_ }
 
+        # Remove settings file
+        if (Test-Path $SettingsPath) {
+            Remove-Item $SettingsPath -Force
+        }
+
         if ($service) { Start-Service $service -ErrorAction Stop }
         Write-Output 'Sunshine virtual display removed successfully.'
     }
@@ -188,4 +248,17 @@ function Uninstall-Portable {
         if ($service -and $wasRunning) { try { Start-Service $service -ErrorAction SilentlyContinue } catch {} }
         throw 'Uninstall encountered errors.'
     }
+}
+
+# Main execution
+if ($Install) {
+    Install-Portable
+} elseif ($Uninstall) {
+    Uninstall-Portable
+} else {
+    Write-Host "Usage: portable.ps1 [-Install | -Uninstall] [-SettingsPath <path>]"
+    Write-Host ""
+    Write-Host "  -Install    : Install the Sunshine virtual display driver"
+    Write-Host "  -Uninstall  : Remove the Sunshine virtual display driver"
+    Write-Host "  -SettingsPath : Path to settings.json file (default: .\settings.json)"
 }
