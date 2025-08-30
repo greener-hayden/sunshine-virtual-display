@@ -43,8 +43,8 @@ function Test-IsAdmin {
 
 function Test-Internet {
     <# Returns $true if the machine can reach a public host. #>
-    param([string]$Host = '8.8.8.8')
-    try { Test-Connection -ComputerName $Host -Quiet -Count 1 -ErrorAction Stop } catch { $false }
+    param([string]$TargetHost = '8.8.8.8')
+    try { Test-Connection -ComputerName $TargetHost -Quiet -Count 1 -ErrorAction Stop } catch { $false }
 }
 
 function Get-Settings {
