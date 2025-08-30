@@ -6,7 +6,8 @@ Simple PowerShell scripts to enable virtual display support for Sunshine game st
 
 ### Requirements
 - Windows 10/11
-- Administrator privileges  
+- Administrator privileges
+- PowerShell 7 or later
 - [Sunshine](https://github.com/LizardByte/Sunshine) installed
 - Internet connection (for driver download)
 
@@ -72,7 +73,7 @@ The script automatically reads client resolution from Sunshine environment varia
 
 ## Files Created
 
-- `settings.json` - Stores installation info
+- `settings.json` - Stores installation info (pre-filled with default `SunshineService` name)
 - `logs/` - Contains debug logs (created on first run)
 
 ## Notes
