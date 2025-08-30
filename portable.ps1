@@ -54,6 +54,9 @@ function Get-Settings {
     if (Test-Path $Path) {
         try {
             $settings = Get-Content $Path -Raw | ConvertFrom-Json
+            if ([string]::IsNullOrWhiteSpace($settings.serviceName)) {
+                $settings.serviceName = 'SunshineService'
+            }
             return $settings
         } catch {
             Write-Warning "Failed to load settings from $Path"

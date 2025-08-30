@@ -3,7 +3,7 @@
   "deviceId": "",
   "sunshineConfigPath": "",
   "sunshineConfigBackup": "",
-  "serviceName": "",
+  "serviceName": "SunshineService",
   "installDate": "",
-  "version": ""
+  "version": "1.0.0"
 }
